@@ -3,8 +3,17 @@
 A fantasy Survivor league **and** weekly pick'em for you and your friends.
 Built with Next.js 14 + Supabase (Postgres, auth, row-level security).
 
-This is a **standalone side project**. It lives in its own folder and shares
-nothing with the surrounding repo — see [Moving this to its own repo](#moving-this-to-its-own-repo).
+**Deploy:** import this repo at **[vercel.com/new](https://vercel.com/new)** as a
+new project (recommended — no duplicate repo), or use the one-click
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fjrodriguez-cell%2Ftorch-survivor-league&project-name=torch-survivor-league&repository-name=torch-survivor-league&env=NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_SITE_URL&envDescription=Supabase%20URL%20%2B%20anon%20key%2C%20and%20your%20app%27s%20public%20URL)
+button (note: the button makes its own copy of the repo). Full steps in
+[Deploy to Vercel](#5-deploy-to-vercel-when-youre-ready-to-share).
+
+> Set up your Supabase project **first** (steps below) so you have the two keys
+> ready when Vercel asks for them.
+
+This is a **standalone project** — its own repo, its own Vercel project. It
+shares nothing with, and cannot affect, any other app or website.
 
 ## What it does
 
@@ -75,13 +84,40 @@ the magic link. You're in.
 > Configuration** and add your site URL (e.g. `http://localhost:3000` and later
 > your Vercel URL) to **Redirect URLs**, so the sign-in links are trusted.
 
-### 5. Deploy (when you're ready to share)
+### 5. Deploy to Vercel (when you're ready to share)
 
-1. Push this to a Git repo (see below) and import it on <https://vercel.com>.
-2. In Vercel, set the three `NEXT_PUBLIC_*` env vars (use your real deployed URL
-   for `NEXT_PUBLIC_SITE_URL`).
-3. Add the deployed URL to Supabase **Redirect URLs**.
-4. Share the app link + your league's invite code with your friends.
+The **[Deploy with Vercel](#-torch--fantasy-survivor-league)** button at the top
+imports this repo as a **brand-new, isolated Vercel project** — it will not
+touch any existing project, domain, or environment on your account. During the
+flow Vercel asks for the three environment variables:
+
+| Variable                        | Value                                             |
+| ------------------------------- | ------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | your Supabase project URL                          |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your Supabase anon/public key                      |
+| `NEXT_PUBLIC_SITE_URL`          | leave blank for now, then update it (see step 3)   |
+
+Prefer to import manually? Go to **<https://vercel.com/new>**, pick
+`torch-survivor-league`, keep the defaults (Next.js is auto-detected), add the
+env vars above, and **Deploy**. Either way it lands as its own project.
+
+**After the first deploy:**
+
+1. Copy your new production URL (e.g. `https://torch-survivor-league.vercel.app`).
+2. In Vercel → your project → **Settings → Environment Variables**, set
+   `NEXT_PUBLIC_SITE_URL` to that URL, then **redeploy** (Deployments → ⋯ →
+   Redeploy) so magic-link emails point to the right place.
+3. In Supabase → **Authentication → URL Configuration**, add that same URL to
+   **Redirect URLs** (keep `http://localhost:3000` there too for local dev).
+4. Share the app link + your league's invite code with your friends. 🔥
+
+**Keeping it isolated from your other apps:**
+
+- It's a separate Git repo, so Vercel treats it as a separate project with its
+  own `*.vercel.app` domain — no collision with existing domains.
+- Environment variables are per-project; these Supabase keys live only here.
+- Use a **separate Supabase project** for it too (don't reuse a business one),
+  so its database and users are fully independent.
 
 ---
 
