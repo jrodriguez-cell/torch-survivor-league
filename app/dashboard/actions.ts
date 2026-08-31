@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { CURRENT_SEASON } from "@/lib/types";
 
-// Create a new league; the creator becomes commissioner and a member.
-export async function createLeague(formData: FormData) {
+// Create a new group; the creator becomes commissioner and first member.
+export async function createGroup(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
-  const seasonName = String(formData.get("season_name") ?? "").trim() || "Season";
-  const rosterSize = Math.max(1, Math.min(10, Number(formData.get("roster_size") ?? 4)));
-
+  const strikeLimit = Math.max(1, Math.min(2, Number(formData.get("strike_limit") ?? 1)));
+  const isPublic = formData.get("is_public") === "on";
   if (!name) return;
 
   const supabase = createClient();
@@ -18,33 +18,40 @@ export async function createLeague(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: league, error } = await supabase
-    .from("leagues")
+  const { data: group, error } = await supabase
+    .from("groups")
     .insert({
       name,
-      season_name: seasonName,
-      roster_size: rosterSize,
-      commissioner_id: user.id,
+      commish_id: user.id,
+      strike_limit: strikeLimit,
+      is_public: isPublic,
+      season: CURRENT_SEASON,
     })
     .select("id")
     .single();
 
-  if (error || !league) {
-    throw new Error(error?.message ?? "Could not create league");
+  if (error || !group) {
+    throw new Error(error?.message ?? "Could not create group");
   }
 
-  await supabase.from("league_members").insert({
-    league_id: league.id,
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  await supabase.from("group_members").insert({
+    group_id: group.id,
     user_id: user.id,
-    role: "commissioner",
+    display_name: profile?.display_name ?? null,
   });
 
   revalidatePath("/dashboard");
-  redirect(`/leagues/${league.id}`);
+  redirect(`/groups/${group.id}`);
 }
 
-// Join an existing league by its invite code.
-export async function joinLeague(formData: FormData) {
+// Join a group by its invite code (via the security-definer RPC).
+export async function joinByCode(formData: FormData) {
   const code = String(formData.get("invite_code") ?? "").trim().toUpperCase();
   if (!code) return;
 
@@ -54,23 +61,14 @@ export async function joinLeague(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: league } = await supabase
-    .from("leagues")
-    .select("id")
-    .eq("invite_code", code)
-    .maybeSingle();
+  const { data: groupId, error } = await supabase.rpc("join_group_by_code", {
+    p_code: code,
+  });
 
-  if (!league) {
-    redirect("/dashboard?error=notfound");
+  if (error || !groupId) {
+    redirect("/dashboard?error=badcode");
   }
 
-  await supabase
-    .from("league_members")
-    .upsert(
-      { league_id: league.id, user_id: user.id, role: "member" },
-      { onConflict: "league_id,user_id", ignoreDuplicates: true }
-    );
-
   revalidatePath("/dashboard");
-  redirect(`/leagues/${league.id}`);
+  redirect(`/groups/${groupId}`);
 }

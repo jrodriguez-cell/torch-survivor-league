@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { APP_NAME, APP_TAGLINE } from "@/lib/branding";
 
 export const metadata: Metadata = {
-  title: "Torch — Fantasy Survivor League",
-  description:
-    "A fantasy Survivor league and weekly pick'em for you and your friends.",
+  title: `${APP_NAME} — NFL Survivor Pool`,
+  description: APP_TAGLINE,
 };
 
 export default function RootLayout({

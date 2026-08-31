@@ -1,100 +1,79 @@
-// Shared TypeScript types mirroring the database schema.
+// Shared TypeScript types mirroring the NFL survivor-pool schema.
 
-export type Role = "member" | "commissioner";
+export type MemberStatus = "active" | "eliminated";
+export type Phase = "regular" | "playoffs";
+export type GameStatus = "scheduled" | "in_progress" | "final" | "postponed";
+export type PickResult = "pending" | "win" | "loss" | "tie" | "missed";
 
 export interface Profile {
   id: string;
   display_name: string;
+  avatar_url: string | null;
   created_at: string;
 }
 
-export interface League {
+export interface Group {
   id: string;
   name: string;
-  season_name: string;
-  commissioner_id: string;
+  commish_id: string;
+  strike_limit: number;
+  is_public: boolean;
   invite_code: string;
-  roster_size: number;
+  season: number;
   created_at: string;
 }
 
-export interface LeagueMember {
-  league_id: string;
+export interface GroupMember {
+  id: string;
+  group_id: string;
   user_id: string;
-  role: Role;
+  display_name: string | null;
+  status: MemberStatus;
+  strikes_used: number;
+  eliminated_week_id: string | null;
   joined_at: string;
 }
 
-export interface Castaway {
+export interface Team {
   id: string;
-  league_id: string;
+  abbreviation: string;
   name: string;
-  tribe: string | null;
-  image_url: string | null;
-  is_eliminated: boolean;
-  eliminated_week: number | null;
-  created_at: string;
+  logo_url: string | null;
 }
 
-export interface Episode {
+export interface Week {
   id: string;
-  league_id: string;
+  season: number;
   week_number: number;
-  title: string | null;
-  air_date: string | null;
-  picks_lock_at: string | null;
-  is_scored: boolean;
+  phase: Phase;
+  pick_deadline: string;
+  picks_required: number;
+}
+
+export interface NflGame {
+  id: string;
+  week_id: string;
+  home_team_id: string;
+  away_team_id: string;
+  kickoff_time: string;
+  status: GameStatus;
+  home_score: number | null;
+  away_score: number | null;
+  winner_team_id: string | null;
+  external_id: string | null;
+  updated_at: string;
+}
+
+export interface Pick {
+  id: string;
+  group_member_id: string;
+  week_id: string;
+  team_id: string;
+  phase: Phase;
+  result: PickResult;
+  locked_at: string | null;
   created_at: string;
 }
 
-export interface ScoringEvent {
-  id: string;
-  league_id: string;
-  episode_id: string;
-  castaway_id: string;
-  event_type: string;
-  points: number;
-  created_at: string;
-}
-
-export type QuestionType = "castaway" | "text";
-
-export interface PickemQuestion {
-  id: string;
-  episode_id: string;
-  league_id: string;
-  prompt: string;
-  question_type: QuestionType;
-  points: number;
-  correct_castaway_id: string | null;
-  correct_text: string | null;
-  sort_order: number;
-  created_at: string;
-}
-
-export interface PickemAnswer {
-  id: string;
-  question_id: string;
-  user_id: string;
-  answer_castaway_id: string | null;
-  answer_text: string | null;
-}
-
-export interface StandingRow {
-  league_id: string;
-  user_id: string;
-  display_name: string;
-  total_points: number;
-}
-
-// Default fantasy scoring template offered to new commissioners.
-export const DEFAULT_SCORING: { event_type: string; label: string; points: number }[] = [
-  { event_type: "survived", label: "Survived the episode", points: 1 },
-  { event_type: "immunity_win", label: "Won individual immunity", points: 3 },
-  { event_type: "reward_win", label: "Won a reward", points: 1 },
-  { event_type: "found_idol", label: "Found a hidden immunity idol", points: 2 },
-  { event_type: "played_idol", label: "Successfully played an idol", points: 2 },
-  { event_type: "made_merge", label: "Made the merge", points: 3 },
-  { event_type: "made_fire", label: "Won a fire-making challenge", points: 2 },
-  { event_type: "voted_out", label: "Voted out", points: -1 },
-];
+// The current NFL season the app defaults to when creating groups.
+export const CURRENT_SEASON = 2026;
