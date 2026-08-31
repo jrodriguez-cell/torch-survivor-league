@@ -1,22 +1,20 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_CONFIGURED } from "./env";
 
 // Refreshes the auth session on every request and gates authenticated pages.
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
   // If Supabase isn't configured yet, don't crash the whole site — just let
   // requests through unauthenticated. (Set the env vars to enable auth.)
-  if (!supabaseUrl || !supabaseKey) {
+  if (!SUPABASE_CONFIGURED) {
     return response;
   }
 
   const supabase = createServerClient(
-    supabaseUrl,
-    supabaseKey,
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
