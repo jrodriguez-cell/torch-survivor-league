@@ -12,9 +12,10 @@ function fromAddress(): string {
   return process.env.EMAIL_FROM || `${APP_NAME} <onboarding@resend.dev>`;
 }
 
-async function send(to: string, subject: string, html: string): Promise<boolean> {
+async function send(to: string | string[], subject: string, html: string): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
-  if (!key || !to) return false;
+  const recipients = Array.isArray(to) ? to.filter(Boolean) : to ? [to] : [];
+  if (!key || recipients.length === 0) return false;
   try {
     const res = await fetch(RESEND_ENDPOINT, {
       method: "POST",
@@ -22,12 +23,22 @@ async function send(to: string, subject: string, html: string): Promise<boolean>
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from: fromAddress(), to, subject, html }),
+      body: JSON.stringify({ from: fromAddress(), to: recipients, subject, html }),
     });
     return res.ok;
   } catch {
     return false;
   }
+}
+
+// Send a pre-built HTML body (wrapped in the shared shell) to one or more
+// recipients. Returns false if email isn't configured.
+export async function sendHtmlEmail(
+  to: string | string[],
+  subject: string,
+  bodyHtml: string
+): Promise<boolean> {
+  return send(to, subject, shell(bodyHtml));
 }
 
 function shell(body: string): string {

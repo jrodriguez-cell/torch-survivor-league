@@ -6,6 +6,8 @@ import {
   reopenGame,
   overridePick,
   lockWeekNow,
+  sendRecap,
+  sendTestRecap,
 } from "@/app/groups/[groupId]/scoring/actions";
 
 type GameRow = {
@@ -48,6 +50,31 @@ export default function ScoringAdmin({
   return (
     <div className="space-y-8">
       {msg && <p className="rounded-lg bg-stone-100 p-2 text-sm text-stone-700">{msg}</p>}
+
+      <section className="card">
+        <h3 className="font-semibold">📣 Weekly recap email</h3>
+        <p className="mb-3 text-sm text-stone-500">
+          An AI-written recap of Week {week.number} — survivors, eliminations, and
+          a little trash talk. Send a test to yourself first.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="btn-ghost" disabled={pending}
+            onClick={() => run(() => sendTestRecap(groupId, week.id))}
+          >
+            Send test recap to me
+          </button>
+          <button
+            className="btn-primary" disabled={pending}
+            onClick={() => {
+              if (confirm("Send the Week " + week.number + " recap to everyone in the pool?"))
+                run(() => sendRecap(groupId, week.id));
+            }}
+          >
+            Send recap to the league
+          </button>
+        </div>
+      </section>
 
       {!week.deadlinePassed && (
         <section className="card">

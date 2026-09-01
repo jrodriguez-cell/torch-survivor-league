@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import { loadGroupContext } from "@/lib/group";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rescoreSeason } from "@/lib/nfl-sync";
-import type { NflGame } from "@/lib/types";
+import { buildRecap } from "@/lib/recap";
+import { sendHtmlEmail } from "@/lib/email";
+import type { NflGame, Week } from "@/lib/types";
 
 async function requireCommish(groupId: string) {
   const ctx = await loadGroupContext(groupId);
@@ -100,6 +102,54 @@ export async function overridePick(
   await rescoreSeason(group.season);
   revalidateGroup(groupId);
   return { ok: true, message: `Pick set to ${result}.` };
+}
+
+// Send the AI-written weekly recap to everyone in the pool.
+export async function sendRecap(
+  groupId: string,
+  weekId: string
+): Promise<{ ok: boolean; message: string }> {
+  const { group } = await requireCommish(groupId);
+  const admin = createAdminClient();
+
+  const { data: w } = await admin.from("weeks").select("*").eq("id", weekId).maybeSingle();
+  const week = w as Week | null;
+  if (!week) return { ok: false, message: "Week not found." };
+
+  const { data: members } = await admin
+    .from("group_members").select("user_id").eq("group_id", group.id);
+  const emails: string[] = [];
+  for (const m of members ?? []) {
+    const { data } = await admin.auth.admin.getUserById(m.user_id as string);
+    if (data.user?.email) emails.push(data.user.email);
+  }
+  if (!emails.length) return { ok: false, message: "No recipient emails found." };
+
+  const { subject, html } = await buildRecap(admin, group, week);
+  const ok = await sendHtmlEmail(emails, subject, html);
+  return ok
+    ? { ok: true, message: `Recap sent to ${emails.length} player(s).` }
+    : { ok: false, message: "Email isn't configured (set RESEND_API_KEY) or the send failed." };
+}
+
+// Send a test recap to just the commissioner (to confirm email works).
+export async function sendTestRecap(
+  groupId: string,
+  weekId: string
+): Promise<{ ok: boolean; message: string }> {
+  const { group, user } = await requireCommish(groupId);
+  const admin = createAdminClient();
+
+  const { data: w } = await admin.from("weeks").select("*").eq("id", weekId).maybeSingle();
+  const week = w as Week | null;
+  if (!week) return { ok: false, message: "Week not found." };
+  if (!user.email) return { ok: false, message: "Your account has no email address." };
+
+  const { subject, html } = await buildRecap(admin, group, week);
+  const ok = await sendHtmlEmail(user.email, `[TEST] ${subject}`, html);
+  return ok
+    ? { ok: true, message: `Test recap sent to ${user.email}. Check your inbox.` }
+    : { ok: false, message: "Email isn't configured (set RESEND_API_KEY) or the send failed." };
 }
 
 // Lock a week's picks immediately (emergencies / testing). Re-syncing the
