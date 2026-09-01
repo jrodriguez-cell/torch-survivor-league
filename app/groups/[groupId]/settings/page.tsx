@@ -6,6 +6,7 @@ import {
   regenerateInviteCode,
   removeMember,
 } from "./actions";
+import SyncButtons from "@/components/SyncButtons";
 import type { GroupMember } from "@/lib/types";
 
 export default async function SettingsPage({
@@ -65,6 +66,11 @@ export default async function SettingsPage({
       </section>
 
       <section>
+        <h2 className="mb-3 text-lg font-semibold">NFL data</h2>
+        <SyncButtons groupId={group.id} />
+      </section>
+
+      <section>
         <h2 className="mb-3 text-lg font-semibold">Members</h2>
         <div className="card divide-y divide-stone-100">
           {members.map((m) => {
@@ -87,8 +93,8 @@ export default async function SettingsPage({
           })}
         </div>
         <p className="mt-3 text-xs text-stone-400">
-          Manual pick overrides and a &quot;force re-sync&quot; button arrive with
-          the live scoring in the next phase.
+          Manual per-pick result overrides arrive with the commissioner tools in
+          the next phase.
         </p>
       </section>
     </div>

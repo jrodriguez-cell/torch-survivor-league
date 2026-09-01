@@ -52,6 +52,7 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/signup") ||
     path.startsWith("/forgot-password") ||
     path.startsWith("/auth") ||
+    path.startsWith("/api") || // API routes do their own auth (e.g. cron secret)
     path.startsWith("/_next") ||
     path.startsWith("/favicon");
 

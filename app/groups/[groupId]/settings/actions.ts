@@ -4,11 +4,43 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
 import { loadGroupContext } from "@/lib/group";
+import { syncSchedule, syncScores } from "@/lib/nfl-sync";
 
 async function requireCommish(groupId: string) {
   const ctx = await loadGroupContext(groupId);
   if (!ctx.isCommish) redirect(`/groups/${groupId}`);
   return ctx;
+}
+
+// Pull this week's real schedule from ESPN into the DB (replaces test data).
+export async function syncScheduleNow(
+  groupId: string
+): Promise<{ ok: boolean; message: string }> {
+  await requireCommish(groupId);
+  try {
+    const r = await syncSchedule();
+    revalidatePath(`/groups/${groupId}/pick`);
+    revalidatePath(`/groups/${groupId}`);
+    return { ok: true, message: `Loaded ${r.games} games for Week ${r.weekNumber} (${r.season}).` };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Sync failed." };
+  }
+}
+
+// Force a live score sync + re-scoring right now.
+export async function forceResync(
+  groupId: string
+): Promise<{ ok: boolean; message: string }> {
+  await requireCommish(groupId);
+  try {
+    const r = await syncScores();
+    revalidatePath(`/groups/${groupId}/standings`);
+    revalidatePath(`/groups/${groupId}`);
+    revalidatePath(`/groups/${groupId}/pick`);
+    return { ok: true, message: `Synced Week ${r.weekNumber} scores and updated standings.` };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Sync failed." };
+  }
 }
 
 export async function updateGroupSettings(groupId: string, formData: FormData) {
