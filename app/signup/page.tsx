@@ -61,7 +61,7 @@ function SignupInner() {
   return (
     <AuthShell title="Create your account">
       {done === "confirm" ? (
-        <div className="rounded-lg bg-jungle-50 p-4 text-center text-sm text-jungle-800">
+        <div className="rounded-lg bg-stone-100 p-4 text-center text-sm text-stone-700">
           <p className="font-semibold">Almost there 📬</p>
           <p className="mt-1">
             We sent a confirmation link to <strong>{email}</strong>. Click it to

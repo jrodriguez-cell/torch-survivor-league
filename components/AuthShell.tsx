@@ -11,7 +11,7 @@ export default function AuthShell({
   children: React.ReactNode;
 }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-jungle-900 to-jungle-700 p-4">
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-800 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
         <div className="mb-6 text-center">
           <div className="text-4xl">{APP_EMOJI}</div>

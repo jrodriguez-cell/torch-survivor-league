@@ -33,7 +33,7 @@ export default function ForgotPasswordPage() {
       subtitle="We'll email you a link to set a new one."
     >
       {sent ? (
-        <div className="rounded-lg bg-jungle-50 p-4 text-center text-sm text-jungle-800">
+        <div className="rounded-lg bg-stone-100 p-4 text-center text-sm text-stone-700">
           <p className="font-semibold">Check your email 📬</p>
           <p className="mt-1">
             If an account exists for <strong>{email}</strong>, a reset link is on

@@ -2,12 +2,14 @@
 // set, every send is a no-op that returns false, so the app runs fine without
 // email configured. Swap this file to change providers.
 
+import { APP_NAME, APP_EMOJI } from "@/lib/branding";
+
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
 function fromAddress(): string {
   // Resend's test sender works without domain verification (delivers only to
   // the account owner in test mode). Set EMAIL_FROM to your verified sender.
-  return process.env.EMAIL_FROM || "Gridiron Survivor <onboarding@resend.dev>";
+  return process.env.EMAIL_FROM || `${APP_NAME} <onboarding@resend.dev>`;
 }
 
 async function send(to: string, subject: string, html: string): Promise<boolean> {
@@ -30,9 +32,9 @@ async function send(to: string, subject: string, html: string): Promise<boolean>
 
 function shell(body: string): string {
   return `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;color:#1c1917">
-    <div style="font-size:22px;font-weight:800">🏈 Gridiron Survivor</div>
+    <div style="font-size:22px;font-weight:800">${APP_EMOJI} ${APP_NAME}</div>
     <div style="margin-top:12px;font-size:15px;line-height:1.5">${body}</div>
-    <div style="margin-top:24px;font-size:12px;color:#a8a29e">You're getting this because you're in a Gridiron Survivor pool.</div>
+    <div style="margin-top:24px;font-size:12px;color:#a8a29e">You're getting this because you're in a ${APP_NAME} pool.</div>
   </div>`;
 }
 

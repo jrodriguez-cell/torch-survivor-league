@@ -60,7 +60,7 @@ function LoginInner() {
   return (
     <AuthShell title="Log in to your pool">
       {magicSent ? (
-        <div className="rounded-lg bg-jungle-50 p-4 text-center text-sm text-jungle-800">
+        <div className="rounded-lg bg-stone-100 p-4 text-center text-sm text-stone-700">
           <p className="font-semibold">Check your email 📬</p>
           <p className="mt-1">
             We sent a one-click login link to <strong>{email}</strong>.

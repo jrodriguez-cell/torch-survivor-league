@@ -12,11 +12,11 @@ export default async function HomePage() {
   if (user) redirect("/dashboard");
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-jungle-900 via-jungle-800 to-jungle-700 text-white">
+    <main className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-800 text-white">
       <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-6 py-16 text-center">
         <div className="text-6xl">{APP_EMOJI}</div>
         <h1 className="mt-4 text-5xl font-extrabold tracking-tight">{APP_NAME}</h1>
-        <p className="mt-4 max-w-xl text-lg text-jungle-100">
+        <p className="mt-4 max-w-xl text-lg text-neutral-300">
           The classic NFL survivor pool for you and your friends. Pick one team
           to win each week — but you can only use each team once. Lose, and
           you&apos;re on a strike. The last one standing takes the pot.
@@ -31,7 +31,7 @@ export default async function HomePage() {
             <div key={f.title} className="rounded-2xl bg-white/10 p-5 text-left backdrop-blur">
               <div className="text-2xl">{f.emoji}</div>
               <div className="mt-2 font-semibold">{f.title}</div>
-              <div className="mt-1 text-sm text-jungle-100">{f.body}</div>
+              <div className="mt-1 text-sm text-neutral-300">{f.body}</div>
             </div>
           ))}
         </div>
@@ -39,7 +39,7 @@ export default async function HomePage() {
         <Link href="/signup" className="mt-10 btn bg-ember-500 px-8 py-3 text-base text-white hover:bg-ember-600">
           Create your account
         </Link>
-        <p className="mt-3 text-sm text-jungle-200">
+        <p className="mt-3 text-sm text-neutral-400">
           Already playing?{" "}
           <Link href="/login" className="font-semibold text-white underline">
             Log in

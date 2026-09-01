@@ -47,7 +47,7 @@ export default function ResetPasswordPage() {
   return (
     <AuthShell title="Choose a new password">
       {done ? (
-        <div className="rounded-lg bg-jungle-50 p-4 text-center text-sm text-jungle-800">
+        <div className="rounded-lg bg-stone-100 p-4 text-center text-sm text-stone-700">
           <p className="font-semibold">Password updated ✅</p>
           <p className="mt-1">Taking you to your dashboard…</p>
         </div>
