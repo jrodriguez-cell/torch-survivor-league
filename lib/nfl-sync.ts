@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchScoreboard, type Scoreboard } from "@/lib/nfl-data";
+import { sendEliminationEmail } from "@/lib/email";
 
 type StrikeReason = "loss" | "tie" | "missed" | "mixed";
 
@@ -125,9 +126,10 @@ async function computeStrikesAndElimination(admin: SupabaseClient, season: numbe
   const weekNumberById = new Map(weeks.map((w) => [w.id as string, w.week_number as number]));
 
   const { data: groupData } = await admin
-    .from("groups").select("id, strike_limit").eq("season", season);
+    .from("groups").select("id, strike_limit, name").eq("season", season);
   const groups = groupData ?? [];
   const strikeLimitByGroup = new Map(groups.map((g) => [g.id as string, g.strike_limit as number]));
+  const groupNameById = new Map(groups.map((g) => [g.id as string, g.name as string]));
   const groupIds = groups.map((g) => g.id as string);
   if (!groupIds.length) return;
 
@@ -195,6 +197,8 @@ async function computeStrikesAndElimination(admin: SupabaseClient, season: numbe
     strikesByMember.set(s.group_member_id as string, arr);
   }
 
+  const newlyEliminated: { userId: string; groupId: string }[] = [];
+
   for (const m of members) {
     const memberId = m.id as string;
     const limit = strikeLimitByGroup.get(m.group_id as string) ?? 1;
@@ -218,6 +222,20 @@ async function computeStrikesAndElimination(admin: SupabaseClient, season: numbe
         .from("group_members")
         .update({ strikes_used: used, status, eliminated_week_id: eliminatedWeekId })
         .eq("id", memberId);
+      if (status === "eliminated" && m.status !== "eliminated") {
+        newlyEliminated.push({ userId: m.user_id as string, groupId: m.group_id as string });
+      }
+    }
+  }
+
+  // Best-effort elimination emails (no-op if email isn't configured).
+  for (const e of newlyEliminated) {
+    try {
+      const { data } = await admin.auth.admin.getUserById(e.userId);
+      const email = data.user?.email;
+      if (email) await sendEliminationEmail(email, groupNameById.get(e.groupId) ?? "your pool");
+    } catch {
+      // ignore email failures
     }
   }
 }
@@ -227,6 +245,14 @@ export async function syncSchedule(opts?: { season?: number; week?: number; seas
   const admin = createAdminClient();
   const board = await fetchScoreboard(opts);
   return upsertBoard(admin, board);
+}
+
+// Re-run pick resolution + strikes/elimination for a season WITHOUT touching
+// ESPN — used after a commissioner manually overrides a game or pick result.
+export async function rescoreSeason(season: number) {
+  const admin = createAdminClient();
+  await resolvePickResults(admin, season);
+  await computeStrikesAndElimination(admin, season);
 }
 
 // Full live pass: refresh current week's scores, resolve picks, charge strikes,

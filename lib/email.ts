@@ -1,0 +1,70 @@
+// Transactional email via Resend. Entirely optional: with no RESEND_API_KEY
+// set, every send is a no-op that returns false, so the app runs fine without
+// email configured. Swap this file to change providers.
+
+const RESEND_ENDPOINT = "https://api.resend.com/emails";
+
+function fromAddress(): string {
+  // Resend's test sender works without domain verification (delivers only to
+  // the account owner in test mode). Set EMAIL_FROM to your verified sender.
+  return process.env.EMAIL_FROM || "Gridiron Survivor <onboarding@resend.dev>";
+}
+
+async function send(to: string, subject: string, html: string): Promise<boolean> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key || !to) return false;
+  try {
+    const res = await fetch(RESEND_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from: fromAddress(), to, subject, html }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function shell(body: string): string {
+  return `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;color:#1c1917">
+    <div style="font-size:22px;font-weight:800">🏈 Gridiron Survivor</div>
+    <div style="margin-top:12px;font-size:15px;line-height:1.5">${body}</div>
+    <div style="margin-top:24px;font-size:12px;color:#a8a29e">You're getting this because you're in a Gridiron Survivor pool.</div>
+  </div>`;
+}
+
+export async function sendEliminationEmail(to: string, groupName: string): Promise<boolean> {
+  return send(
+    to,
+    `You've been eliminated in ${groupName}`,
+    shell(
+      `<p>Tough break — your run in <strong>${groupName}</strong> is over.</p>
+       <p>You've hit the strike limit, so you can't submit more picks, but you can still watch how the rest of the pool shakes out.</p>`
+    )
+  );
+}
+
+export async function sendReminderEmail(
+  to: string,
+  groupName: string,
+  deadlineIso: string
+): Promise<boolean> {
+  const when = new Date(deadlineIso).toLocaleString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return send(
+    to,
+    `⏰ Don't forget your pick in ${groupName}`,
+    shell(
+      `<p>You haven't made your pick yet in <strong>${groupName}</strong>.</p>
+       <p>Picks lock <strong>${when}</strong>. Miss it and it's an automatic strike.</p>`
+    )
+  );
+}

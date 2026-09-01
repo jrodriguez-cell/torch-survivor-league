@@ -17,7 +17,12 @@ export default function GroupTabs({
     { href: `${base}/pick`, label: "Make a Pick" },
     { href: `${base}/standings`, label: "Standings" },
     { href: `${base}/history`, label: "My History" },
-    ...(isCommish ? [{ href: `${base}/settings`, label: "Settings" }] : []),
+    ...(isCommish
+      ? [
+          { href: `${base}/scoring`, label: "Scoring" },
+          { href: `${base}/settings`, label: "Settings" },
+        ]
+      : []),
   ];
 
   return (
