@@ -6,6 +6,17 @@ import { APP_NAME, APP_EMOJI } from "@/lib/branding";
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
+// Escape user-controlled text before it goes into an HTML email body, so a
+// display name or pool name like `<img onerror=...>` can't inject markup.
+export function escapeHtml(s: string): string {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function fromAddress(): string {
   // Resend's test sender works without domain verification (delivers only to
   // the account owner in test mode). Set EMAIL_FROM to your verified sender.
@@ -50,11 +61,12 @@ function shell(body: string): string {
 }
 
 export async function sendEliminationEmail(to: string, groupName: string): Promise<boolean> {
+  const g = escapeHtml(groupName);
   return send(
     to,
     `You've been eliminated in ${groupName}`,
     shell(
-      `<p>Tough break — your run in <strong>${groupName}</strong> is over.</p>
+      `<p>Tough break — your run in <strong>${g}</strong> is over.</p>
        <p>You've hit the strike limit, so you can't submit more picks, but you can still watch how the rest of the pool shakes out.</p>`
     )
   );
@@ -72,11 +84,12 @@ export async function sendReminderEmail(
     hour: "numeric",
     minute: "2-digit",
   });
+  const g = escapeHtml(groupName);
   return send(
     to,
     `⏰ Don't forget your pick in ${groupName}`,
     shell(
-      `<p>You haven't made your pick yet in <strong>${groupName}</strong>.</p>
+      `<p>You haven't made your pick yet in <strong>${g}</strong>.</p>
        <p>Picks lock <strong>${when}</strong>. Miss it and it's an automatic strike.</p>`
     )
   );
