@@ -7,6 +7,8 @@ import {
   removeMember,
 } from "./actions";
 import SyncButtons from "@/components/SyncButtons";
+import AnnouncementComposer from "@/components/AnnouncementComposer";
+import { APP_NAME } from "@/lib/branding";
 import type { GroupMember } from "@/lib/types";
 
 export default async function SettingsPage({
@@ -27,6 +29,24 @@ export default async function SettingsPage({
 
   const saveSettings = updateGroupSettings.bind(null, group.id);
   const regen = regenerateInviteCode.bind(null, group.id);
+
+  const strikeText = `${group.strike_limit} strike${group.strike_limit === 1 ? "" : "s"}`;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
+  const linkLine = siteUrl ? `Sign up and join here: ${siteUrl}` : "Sign up in the app, then join with the code below.";
+  const kickoffSubject = `🏈 ${group.name} — Week 1 is almost here`;
+  const kickoffBody = `Hey team —
+
+${APP_NAME} is live and the season's about to kick off. Here's how ${group.name} works:
+
+- Each week you pick ONE NFL team you think will win.
+- You can only use each team ONCE all season, so spend them wisely.
+- A loss, tie, or a missed deadline is a strike. ${strikeText} and you're out.
+- Picks lock at kickoff of the week's first game (Thursday counts!) — don't wait until Sunday.
+
+${linkLine}
+Invite code: ${group.invite_code}
+
+Make your Week 1 pick before kickoff. Last one standing takes it all. Good luck.`;
 
   return (
     <div className="space-y-8">
@@ -63,6 +83,20 @@ export default async function SettingsPage({
             <button className="btn-ghost">Regenerate</button>
           </form>
         </div>
+      </section>
+
+      <section>
+        <h2 className="mb-1 text-lg font-semibold">Email the league</h2>
+        <p className="mb-3 text-sm text-stone-500">
+          Send an announcement to everyone in the pool — a season kickoff, a rule
+          reminder, whatever. Prefilled with a kickoff draft; edit it, send a
+          test to yourself, then send to the league.
+        </p>
+        <AnnouncementComposer
+          groupId={group.id}
+          defaultSubject={kickoffSubject}
+          defaultBody={kickoffBody}
+        />
       </section>
 
       <section>

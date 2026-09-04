@@ -5,11 +5,61 @@ import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
 import { loadGroupContext } from "@/lib/group";
 import { syncSchedule, syncScores } from "@/lib/nfl-sync";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { sendHtmlEmail, escapeHtml } from "@/lib/email";
 
 async function requireCommish(groupId: string) {
   const ctx = await loadGroupContext(groupId);
   if (!ctx.isCommish) redirect(`/groups/${groupId}`);
   return ctx;
+}
+
+// Turn a plain-text message into safe HTML paragraphs (escaped).
+function textToHtml(text: string): string {
+  return text
+    .split(/\n{2,}/)
+    .map((para) => `<p>${escapeHtml(para.trim()).replaceAll("\n", "<br/>")}</p>`)
+    .join("");
+}
+
+// Send a free-form announcement to the whole pool (or just the commissioner as
+// a test). Commissioner-only.
+export async function sendAnnouncement(
+  groupId: string,
+  subject: string,
+  body: string,
+  testOnly: boolean
+): Promise<{ ok: boolean; message: string }> {
+  const { group, user } = await requireCommish(groupId);
+  const subj = subject.trim();
+  const text = body.trim();
+  if (!subj || !text) return { ok: false, message: "Add a subject and a message first." };
+
+  const html = textToHtml(text);
+  let recipients: string[];
+
+  if (testOnly) {
+    if (!user.email) return { ok: false, message: "Your account has no email address." };
+    recipients = [user.email];
+  } else {
+    const admin = createAdminClient();
+    const { data: members } = await admin
+      .from("group_members").select("user_id").eq("group_id", group.id);
+    recipients = [];
+    for (const m of members ?? []) {
+      const { data } = await admin.auth.admin.getUserById(m.user_id as string);
+      if (data.user?.email) recipients.push(data.user.email);
+    }
+    if (!recipients.length) return { ok: false, message: "No recipient emails found." };
+  }
+
+  const ok = await sendHtmlEmail(recipients, testOnly ? `[TEST] ${subj}` : subj, html);
+  if (!ok) {
+    return { ok: false, message: "Email isn't configured (set RESEND_API_KEY) or the send failed." };
+  }
+  return testOnly
+    ? { ok: true, message: `Test sent to ${user.email}. Check your inbox.` }
+    : { ok: true, message: `Announcement sent to ${recipients.length} player(s).` };
 }
 
 // Pull this week's real schedule from ESPN into the DB (replaces test data).
