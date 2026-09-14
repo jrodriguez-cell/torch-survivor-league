@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { loadGroupContext } from "@/lib/group";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { rescoreSeason } from "@/lib/nfl-sync";
+import { rescoreSeason, syncScores } from "@/lib/nfl-sync";
 import { buildRecap } from "@/lib/recap";
 import { sendHtmlEmail } from "@/lib/email";
 import type { NflGame, Week } from "@/lib/types";
@@ -125,6 +125,8 @@ export async function sendRecap(
   }
   if (!emails.length) return { ok: false, message: "No recipient emails found." };
 
+  // Refresh scores + resolve picks so the recap reflects current results.
+  try { await syncScores(); } catch { /* send with best-available data */ }
   const { subject, html } = await buildRecap(admin, group, week);
   const ok = await sendHtmlEmail(emails, subject, html);
   return ok
@@ -145,6 +147,8 @@ export async function sendTestRecap(
   if (!week) return { ok: false, message: "Week not found." };
   if (!user.email) return { ok: false, message: "Your account has no email address." };
 
+  // Refresh scores + resolve picks so the test reflects current results.
+  try { await syncScores(); } catch { /* send with best-available data */ }
   const { subject, html } = await buildRecap(admin, group, week);
   const ok = await sendHtmlEmail(user.email, `[TEST] ${subject}`, html);
   return ok

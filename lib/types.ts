@@ -20,6 +20,7 @@ export interface Group {
   is_public: boolean;
   invite_code: string;
   season: number;
+  last_recap_week_id: string | null;
   created_at: string;
 }
 
