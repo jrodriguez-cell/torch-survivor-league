@@ -256,34 +256,65 @@ export async function rescoreSeason(season: number) {
 }
 
 // Re-fetch any PAST week (deadline passed) that still has games not marked
-// final/postponed, so a week that didn't finalize live (e.g. the cron wasn't
-// running that week) gets caught up. Without this, syncScores only ever looks
-// at the current ESPN week and old weeks stay stuck as 'scheduled'.
+// final/postponed, and finalize them by matching ESPN events to our stored
+// games via external_id over the week's actual date range. This doesn't rely on
+// ESPN's per-week param (which is unreliable for past weeks), so a week that
+// didn't finalize live gets caught up on the next sync.
+function yyyymmdd(d: Date): string {
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
 async function backfillIncompleteWeeks(admin: SupabaseClient, season: number) {
   const nowIso = new Date().toISOString();
   const { data: weeks } = await admin
     .from("weeks")
-    .select("id, week_number, phase, pick_deadline")
+    .select("id, phase, pick_deadline")
     .eq("season", season)
     .lt("pick_deadline", nowIso);
+  if (!weeks?.length) return;
 
-  for (const w of weeks ?? []) {
+  const teamMap = await teamIdByAbbr(admin);
+
+  for (const w of weeks) {
     const { data: games } = await admin
-      .from("nfl_games").select("status").eq("week_id", w.id as string);
-    const rows = (games as { status: string }[]) ?? [];
-    const incomplete =
-      rows.length === 0 || rows.some((g) => g.status !== "final" && g.status !== "postponed");
-    if (!incomplete) continue;
+      .from("nfl_games")
+      .select("id, external_id, kickoff_time, status")
+      .eq("week_id", w.id as string);
+    const rows = (games as { id: string; external_id: string | null; kickoff_time: string; status: string }[]) ?? [];
+    if (!rows.length) continue;
+    if (!rows.some((g) => g.status !== "final" && g.status !== "postponed")) continue; // already done
 
+    const times = rows.map((g) => new Date(g.kickoff_time).getTime()).filter((t) => !Number.isNaN(t));
+    if (!times.length) continue;
+    const start = new Date(Math.min(...times));
+    const end = new Date(Math.max(...times));
+    end.setUTCDate(end.getUTCDate() + 1); // pad for late games crossing UTC midnight
+
+    let board;
     try {
-      const board = await fetchScoreboard({
-        season,
-        week: w.week_number as number,
+      board = await fetchScoreboard({
+        dates: `${yyyymmdd(start)}-${yyyymmdd(end)}`,
         seasonType: w.phase === "playoffs" ? 3 : 2,
       });
-      await upsertBoard(admin, board);
     } catch {
-      // ESPN hiccup for this week — leave it for the next run.
+      continue; // ESPN hiccup — try again next run
+    }
+
+    const byExt = new Map(board.games.map((g) => [g.externalId, g]));
+    for (const dbg of rows) {
+      if (!dbg.external_id) continue;
+      const ng = byExt.get(dbg.external_id);
+      if (!ng) continue;
+      await admin
+        .from("nfl_games")
+        .update({
+          status: ng.status,
+          home_score: ng.homeScore,
+          away_score: ng.awayScore,
+          winner_team_id: ng.winnerAbbr ? teamMap.get(ng.winnerAbbr) ?? null : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", dbg.id);
     }
   }
 }

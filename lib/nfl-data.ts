@@ -70,12 +70,15 @@ export async function fetchScoreboard(opts?: {
   season?: number;
   week?: number;
   seasonType?: number; // 1 pre, 2 regular, 3 post
+  dates?: string; // ESPN `dates` filter, e.g. "20260904-20260909" or "20260908"
 }): Promise<Scoreboard> {
   const params = new URLSearchParams();
-  if (opts?.season) params.set("dates", String(opts.season));
+  if (opts?.dates) params.set("dates", opts.dates);
+  else if (opts?.season) params.set("dates", String(opts.season));
   if (opts?.seasonType) params.set("seasontype", String(opts.seasonType));
   if (opts?.week) params.set("week", String(opts.week));
-  const url = params.toString() ? `${ESPN_SCOREBOARD}?${params}` : ESPN_SCOREBOARD;
+  params.set("limit", "100");
+  const url = `${ESPN_SCOREBOARD}?${params}`;
 
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`ESPN scoreboard request failed: ${res.status}`);
