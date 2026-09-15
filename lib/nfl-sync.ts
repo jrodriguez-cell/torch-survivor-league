@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchScoreboard, type Scoreboard } from "@/lib/nfl-data";
 import { sendEliminationEmail } from "@/lib/email";
+import { CURRENT_SEASON } from "@/lib/types";
 
 type StrikeReason = "loss" | "tie" | "missed" | "mixed";
 
@@ -321,13 +322,28 @@ async function backfillIncompleteWeeks(admin: SupabaseClient, season: number) {
 
 // Full live pass: refresh current week's scores, backfill any earlier week that
 // didn't finalize, resolve picks, charge strikes, and eliminate. Idempotent —
-// safe to run every few minutes.
+// safe to run every few minutes. The current-week ESPN fetch is isolated so a
+// failure there can't stop pick resolution / strike scoring of already-final games.
 export async function syncScores(opts?: { season?: number; week?: number; seasonType?: number }) {
   const admin = createAdminClient();
-  const board = await fetchScoreboard(opts);
-  const summary = await upsertBoard(admin, board);
-  await backfillIncompleteWeeks(admin, board.season);
-  await resolvePickResults(admin, board.season);
-  await computeStrikesAndElimination(admin, board.season);
+  let season = CURRENT_SEASON;
+  let summary: { weekId: string; weekNumber: number; season: number; games: number } = {
+    weekId: "",
+    weekNumber: 0,
+    season,
+    games: 0,
+  };
+
+  try {
+    const board = await fetchScoreboard(opts);
+    season = board.season;
+    summary = await upsertBoard(admin, board);
+  } catch {
+    // Current-week fetch/upsert failed — still resolve & score whatever is final.
+  }
+
+  await backfillIncompleteWeeks(admin, season);
+  await resolvePickResults(admin, season);
+  await computeStrikesAndElimination(admin, season);
   return summary;
 }
