@@ -255,12 +255,47 @@ export async function rescoreSeason(season: number) {
   await computeStrikesAndElimination(admin, season);
 }
 
-// Full live pass: refresh current week's scores, resolve picks, charge strikes,
-// and eliminate. Idempotent — safe to run every few minutes.
+// Re-fetch any PAST week (deadline passed) that still has games not marked
+// final/postponed, so a week that didn't finalize live (e.g. the cron wasn't
+// running that week) gets caught up. Without this, syncScores only ever looks
+// at the current ESPN week and old weeks stay stuck as 'scheduled'.
+async function backfillIncompleteWeeks(admin: SupabaseClient, season: number) {
+  const nowIso = new Date().toISOString();
+  const { data: weeks } = await admin
+    .from("weeks")
+    .select("id, week_number, phase, pick_deadline")
+    .eq("season", season)
+    .lt("pick_deadline", nowIso);
+
+  for (const w of weeks ?? []) {
+    const { data: games } = await admin
+      .from("nfl_games").select("status").eq("week_id", w.id as string);
+    const rows = (games as { status: string }[]) ?? [];
+    const incomplete =
+      rows.length === 0 || rows.some((g) => g.status !== "final" && g.status !== "postponed");
+    if (!incomplete) continue;
+
+    try {
+      const board = await fetchScoreboard({
+        season,
+        week: w.week_number as number,
+        seasonType: w.phase === "playoffs" ? 3 : 2,
+      });
+      await upsertBoard(admin, board);
+    } catch {
+      // ESPN hiccup for this week — leave it for the next run.
+    }
+  }
+}
+
+// Full live pass: refresh current week's scores, backfill any earlier week that
+// didn't finalize, resolve picks, charge strikes, and eliminate. Idempotent —
+// safe to run every few minutes.
 export async function syncScores(opts?: { season?: number; week?: number; seasonType?: number }) {
   const admin = createAdminClient();
   const board = await fetchScoreboard(opts);
   const summary = await upsertBoard(admin, board);
+  await backfillIncompleteWeeks(admin, board.season);
   await resolvePickResults(admin, board.season);
   await computeStrikesAndElimination(admin, board.season);
   return summary;
