@@ -248,6 +248,65 @@ export async function syncSchedule(opts?: { season?: number; week?: number; seas
   return upsertBoard(admin, board);
 }
 
+// Ensure every regular-season week (1–18) exists in the DB with its real
+// kickoff-based deadline and full slate of games. This is what makes week
+// advancement AUTOMATIC: once all weeks exist, getCurrentWeek() rolls forward
+// on its own the moment one week's deadline passes — no reliance on the cron
+// happening to fetch "the current week" from ESPN at the right time.
+//
+// Idempotent and cheap on repeat runs: a week that already has games is skipped
+// without an ESPN call. Only missing/empty weeks are fetched. Returns how many
+// weeks it newly loaded.
+export async function ensureSeasonSchedule(
+  seasonArg?: number
+): Promise<{ season: number; loaded: number; weeksPresent: number }> {
+  const admin = createAdminClient();
+  const season = seasonArg ?? CURRENT_SEASON;
+
+  // Which weeks already have games? Those we leave alone.
+  const { data: existingWeeks } = await admin
+    .from("weeks")
+    .select("id, week_number")
+    .eq("season", season);
+  const weekIdByNumber = new Map(
+    (existingWeeks ?? []).map((w) => [w.week_number as number, w.id as string])
+  );
+
+  const populated = new Set<number>();
+  if (weekIdByNumber.size) {
+    const { data: gamesByWeek } = await admin
+      .from("nfl_games")
+      .select("week_id")
+      .in("week_id", Array.from(weekIdByNumber.values()));
+    const numberByWeekId = new Map(
+      Array.from(weekIdByNumber.entries()).map(([num, id]) => [id, num])
+    );
+    for (const g of gamesByWeek ?? []) {
+      const num = numberByWeekId.get(g.week_id as string);
+      if (num) populated.add(num);
+    }
+  }
+
+  let loaded = 0;
+  for (let week = 1; week <= 18; week++) {
+    if (populated.has(week)) continue; // already has its slate
+    try {
+      const board = await fetchScoreboard({ season, week, seasonType: 2 });
+      // ESPN's per-week endpoint reports the requested week back; only upsert
+      // when it actually returned games for it.
+      if (board.games.length && board.weekNumber === week) {
+        await upsertBoard(admin, { ...board, season });
+        loaded++;
+      }
+    } catch {
+      // ESPN hiccup on one week — keep going; next run will fill it in.
+    }
+  }
+
+  const weeksPresent = new Set([...weekIdByNumber.keys(), ...populated]).size + loaded;
+  return { season, loaded, weeksPresent };
+}
+
 // Re-run pick resolution + strikes/elimination for a season WITHOUT touching
 // ESPN — used after a commissioner manually overrides a game or pick result.
 export async function rescoreSeason(season: number) {
@@ -340,6 +399,14 @@ export async function syncScores(opts?: { season?: number; week?: number; season
     summary = await upsertBoard(admin, board);
   } catch {
     // Current-week fetch/upsert failed — still resolve & score whatever is final.
+  }
+
+  // Make sure all 18 weeks exist so the pool advances to the next week on its
+  // own the moment a deadline passes (cheap once the season is loaded).
+  try {
+    await ensureSeasonSchedule(season);
+  } catch {
+    // Non-fatal — scoring below still runs on whatever weeks are present.
   }
 
   await backfillIncompleteWeeks(admin, season);

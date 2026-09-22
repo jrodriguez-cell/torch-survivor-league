@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
 import { loadGroupContext } from "@/lib/group";
-import { syncSchedule, syncScores } from "@/lib/nfl-sync";
+import { syncSchedule, syncScores, ensureSeasonSchedule } from "@/lib/nfl-sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendHtmlEmail, escapeHtml } from "@/lib/email";
 
@@ -62,16 +62,32 @@ export async function sendAnnouncement(
     : { ok: true, message: `Announcement sent to ${recipients.length} player(s).` };
 }
 
-// Pull this week's real schedule from ESPN into the DB (replaces test data).
+// Load the FULL season schedule (all 18 weeks) from ESPN into the DB. This is
+// what lets the pool roll to the next week automatically once a deadline passes.
+// Also pulls the current week's live scores so the current standings are fresh.
 export async function syncScheduleNow(
   groupId: string
 ): Promise<{ ok: boolean; message: string }> {
   await requireCommish(groupId);
   try {
-    const r = await syncSchedule();
+    // Current week first (fast, sets up the active slate), then backfill the
+    // rest of the season so every future week exists with its real deadline.
+    let current: { weekNumber: number; season: number } | null = null;
+    try {
+      current = await syncSchedule();
+    } catch {
+      /* current-week fetch can fail off-season; full-season load still runs */
+    }
+    const r = await ensureSeasonSchedule(current?.season);
     revalidatePath(`/groups/${groupId}/pick`);
     revalidatePath(`/groups/${groupId}`);
-    return { ok: true, message: `Loaded ${r.games} games for Week ${r.weekNumber} (${r.season}).` };
+    const nowLine = current ? `Week ${current.weekNumber} is live. ` : "";
+    return {
+      ok: true,
+      message:
+        `${nowLine}Season schedule loaded — ${r.weeksPresent} of 18 weeks present` +
+        `${r.loaded ? ` (added ${r.loaded})` : ""}. Weeks now advance automatically.`,
+    };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Sync failed." };
   }

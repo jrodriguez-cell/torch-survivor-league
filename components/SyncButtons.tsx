@@ -23,7 +23,7 @@ export default function SyncButtons({ groupId }: { groupId: string }) {
           disabled={pending}
           className="btn-primary"
         >
-          {pending ? "Working…" : "Sync this week's schedule"}
+          {pending ? "Working…" : "Load full season schedule"}
         </button>
         <button
           onClick={() => run(forceResync)}
@@ -35,8 +35,9 @@ export default function SyncButtons({ groupId }: { groupId: string }) {
       </div>
       {msg && <p className="text-sm text-stone-600">{msg}</p>}
       <p className="text-xs text-stone-400">
-        Scores also sync automatically every 10 minutes during game windows. Use
-        these if you want to pull the latest schedule or force an update.
+        Loading the full season makes the pool roll to the next week on its own
+        as each deadline passes. Scores also sync automatically every 10 minutes
+        during game windows — use these to force a refresh.
       </p>
     </div>
   );
