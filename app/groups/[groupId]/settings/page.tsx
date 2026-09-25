@@ -62,6 +62,7 @@ Make your Week 1 pick before kickoff. Last one standing takes it all. Good luck.
             <select id="strike_limit" name="strike_limit" defaultValue={String(group.strike_limit)} className="input">
               <option value="1">1 strike</option>
               <option value="2">2 strikes</option>
+              <option value="3">3 strikes</option>
             </select>
           </div>
           <label className="flex items-center gap-2 text-sm text-stone-700">

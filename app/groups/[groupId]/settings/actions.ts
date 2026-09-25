@@ -112,7 +112,7 @@ export async function forceResync(
 export async function updateGroupSettings(groupId: string, formData: FormData) {
   const { supabase } = await requireCommish(groupId);
   const name = String(formData.get("name") ?? "").trim();
-  const strikeLimit = Math.max(1, Math.min(2, Number(formData.get("strike_limit") ?? 1)));
+  const strikeLimit = Math.max(1, Math.min(3, Number(formData.get("strike_limit") ?? 1)));
   const isPublic = formData.get("is_public") === "on";
   if (!name) return;
 

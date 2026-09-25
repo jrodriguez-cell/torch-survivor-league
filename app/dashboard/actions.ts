@@ -8,7 +8,7 @@ import { CURRENT_SEASON } from "@/lib/types";
 // Create a new group; the creator becomes commissioner and first member.
 export async function createGroup(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
-  const strikeLimit = Math.max(1, Math.min(2, Number(formData.get("strike_limit") ?? 1)));
+  const strikeLimit = Math.max(1, Math.min(3, Number(formData.get("strike_limit") ?? 1)));
   const isPublic = formData.get("is_public") === "on";
   if (!name) return;
 

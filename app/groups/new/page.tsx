@@ -42,6 +42,7 @@ export default async function NewGroupPage() {
             <select id="strike_limit" name="strike_limit" className="input" defaultValue="1">
               <option value="1">1 strike — classic (one bad week and you&apos;re out)</option>
               <option value="2">2 strikes — more forgiving</option>
+              <option value="3">3 strikes — most forgiving</option>
             </select>
           </div>
 
