@@ -4,14 +4,15 @@ import { getCurrentWeek, deadlinePassed } from "@/lib/week";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveMemberNames } from "@/lib/names";
 import ScoringAdmin from "@/components/ScoringAdmin";
-import type { GroupMember, NflGame, Pick, Team } from "@/lib/types";
+import CommishSelfPick, { type CommishWeek } from "@/components/CommishSelfPick";
+import type { GroupMember, NflGame, Pick, Team, Week } from "@/lib/types";
 
 export default async function ScoringPage({
   params,
 }: {
   params: { groupId: string };
 }) {
-  const { supabase, group, isCommish } = await loadGroupContext(params.groupId);
+  const { supabase, group, isCommish, membership } = await loadGroupContext(params.groupId);
   if (!isCommish) redirect(`/groups/${group.id}`);
 
   const week = await getCurrentWeek(supabase, group.season);
@@ -60,6 +61,35 @@ export default async function ScoringPage({
     status: g.status,
   }));
 
+  // Season-wide data for the commissioner's own-pick override (any week).
+  const { data: allWeekData } = await admin
+    .from("weeks").select("*").eq("season", group.season).order("week_number");
+  const allWeeks = (allWeekData as Week[]) ?? [];
+  const allWeekIds = allWeeks.map((w) => w.id);
+  const [{ data: allGameData }, { data: myPickData }] = await Promise.all([
+    allWeekIds.length
+      ? admin.from("nfl_games").select("*").in("week_id", allWeekIds)
+      : Promise.resolve({ data: [] as NflGame[] }),
+    admin.from("picks").select("week_id, team_id").eq("group_member_id", membership.id),
+  ]);
+  const allGames = (allGameData as NflGame[]) ?? [];
+  const myPicks = (myPickData as { week_id: string; team_id: string }[]) ?? [];
+
+  const commishWeeks: CommishWeek[] = allWeeks.map((w) => ({
+    id: w.id,
+    number: w.week_number,
+    picksRequired: w.picks_required,
+    deadlinePassed: deadlinePassed(w),
+    teams: allGames
+      .filter((g) => g.week_id === w.id)
+      .flatMap((g) => [
+        { id: g.home_team_id, abbr: abbr[g.home_team_id] ?? "—", opp: `vs ${abbr[g.away_team_id] ?? "—"}` },
+        { id: g.away_team_id, abbr: abbr[g.away_team_id] ?? "—", opp: `@ ${abbr[g.home_team_id] ?? "—"}` },
+      ]),
+    myPickTeamIds: myPicks.filter((p) => p.week_id === w.id).map((p) => p.team_id),
+  }));
+  const myUsedTeamIds = myPicks.map((p) => p.team_id);
+
   return (
     <div>
       <h2 className="mb-1 text-lg font-semibold">Scoring &amp; overrides</h2>
@@ -67,6 +97,9 @@ export default async function ScoringPage({
         Commissioner tools to fix results the automatic sync got wrong, or to
         test scoring. Changes immediately re-resolve picks and recompute strikes.
       </p>
+      <div className="mb-8">
+        <CommishSelfPick groupId={group.id} weeks={commishWeeks} usedTeamIds={myUsedTeamIds} />
+      </div>
       <ScoringAdmin
         groupId={group.id}
         week={{ id: week.id, number: week.week_number, deadlinePassed: deadlinePassed(week) }}

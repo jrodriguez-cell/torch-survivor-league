@@ -156,6 +156,82 @@ export async function sendTestRecap(
     : { ok: false, message: "Email isn't configured (set RESEND_API_KEY) or the send failed." };
 }
 
+// Commissioner escape hatch: place (or replace) the COMMISSIONER'S OWN pick for
+// any week — including one whose deadline has already passed — without touching
+// anyone else's picks or reopening the week for the rest of the pool.
+//
+// The pick-rules DB trigger rejects writes after the deadline, so we briefly
+// restore a future deadline just long enough to write this one row, then put the
+// real deadline back (in a finally). No other member's picks are read or changed.
+export async function commishSetOwnPick(
+  groupId: string,
+  weekId: string,
+  teamIds: string[]
+): Promise<{ ok: boolean; message: string }> {
+  const { group, membership } = await requireCommish(groupId);
+  const admin = createAdminClient();
+
+  const { data: w } = await admin.from("weeks").select("*").eq("id", weekId).maybeSingle();
+  const week = w as Week | null;
+  if (!week) return { ok: false, message: "Week not found." };
+
+  const unique = [...new Set(teamIds.filter(Boolean))];
+  if (unique.length !== week.picks_required) {
+    return {
+      ok: false,
+      message: `Pick exactly ${week.picks_required} ${week.picks_required === 1 ? "team" : "different teams"} for Week ${week.week_number}.`,
+    };
+  }
+
+  // Teams must be playing that week.
+  const { data: gameData } = await admin
+    .from("nfl_games").select("home_team_id, away_team_id").eq("week_id", weekId);
+  const playing = new Set<string>();
+  for (const g of gameData ?? []) {
+    playing.add(g.home_team_id as string);
+    playing.add(g.away_team_id as string);
+  }
+  if (unique.some((t) => !playing.has(t))) {
+    return { ok: false, message: "One of those teams isn't playing that week." };
+  }
+
+  // Survivor rule: no reusing a team taken in a DIFFERENT week.
+  const { data: priorPicks } = await admin
+    .from("picks").select("team_id, week_id").eq("group_member_id", membership.id).neq("week_id", weekId);
+  const used = new Set((priorPicks ?? []).map((p) => p.team_id as string));
+  if (unique.some((t) => used.has(t))) {
+    return { ok: false, message: "You've already used one of those teams this season." };
+  }
+
+  const originalDeadline = week.pick_deadline;
+  try {
+    // Lift the deadline + ensure the commissioner is active so the trigger allows
+    // the write, then swap in the new pick row(s) for the commissioner only.
+    await admin.from("weeks")
+      .update({ pick_deadline: new Date(Date.now() + 86_400_000).toISOString() }).eq("id", weekId);
+    if (membership.status !== "active") {
+      await admin.from("group_members").update({ status: "active" }).eq("id", membership.id);
+    }
+    await admin.from("picks").delete().eq("group_member_id", membership.id).eq("week_id", weekId);
+    const rows = unique.map((teamId) => ({
+      group_member_id: membership.id, week_id: weekId, team_id: teamId, locked_at: null,
+    }));
+    const { error } = await admin.from("picks").insert(rows);
+    if (error) return { ok: false, message: error.message };
+  } finally {
+    // Always put the real deadline back so the week stays locked for everyone else.
+    await admin.from("weeks").update({ pick_deadline: originalDeadline }).eq("id", weekId);
+  }
+
+  // Clear only the commissioner's stale strike for this week (e.g. a "missed"
+  // strike from having no pick) so scoring re-derives it from the new pick.
+  await admin.from("member_strikes")
+    .delete().eq("group_member_id", membership.id).eq("week_id", weekId);
+  await rescoreSeason(group.season);
+  revalidateGroup(groupId);
+  return { ok: true, message: `Your Week ${week.week_number} pick is in.` };
+}
+
 // Reinstate an eliminated player: forgive all their strikes and set them back
 // to active so they can pick again. Commissioner override. Because scoring
 // re-derives status from the strike ledger, we clear their ledger rows too —
