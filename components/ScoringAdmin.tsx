@@ -6,6 +6,7 @@ import {
   reopenGame,
   overridePick,
   lockWeekNow,
+  reopenPicks,
   sendRecap,
   sendTestRecap,
 } from "@/app/groups/[groupId]/scoring/actions";
@@ -76,7 +77,7 @@ export default function ScoringAdmin({
         </div>
       </section>
 
-      {!week.deadlinePassed && (
+      {!week.deadlinePassed ? (
         <section className="card">
           <h3 className="font-semibold">Picks are still open</h3>
           <p className="mb-3 text-sm text-stone-500">
@@ -90,6 +91,25 @@ export default function ScoringAdmin({
             onClick={() => run(() => lockWeekNow(groupId, week.id))}
           >
             Lock Week {week.number} picks now
+          </button>
+        </section>
+      ) : (
+        <section className="card">
+          <h3 className="font-semibold">Week {week.number} picks are locked</h3>
+          <p className="mb-3 text-sm text-stone-500">
+            The deadline has passed. Reopen picking to let players still get in —
+            the deadline moves to the next kickoff so it stays fair. This clears
+            this week&apos;s strikes; they re-derive after the new deadline.
+          </p>
+          <button
+            className="btn-primary"
+            disabled={pending}
+            onClick={() => {
+              if (confirm("Reopen Week " + week.number + " picks?"))
+                run(() => reopenPicks(groupId, week.id));
+            }}
+          >
+            Reopen Week {week.number} picks
           </button>
         </section>
       )}

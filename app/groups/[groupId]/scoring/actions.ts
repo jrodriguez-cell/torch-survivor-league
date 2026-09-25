@@ -156,6 +156,59 @@ export async function sendTestRecap(
     : { ok: false, message: "Email isn't configured (set RESEND_API_KEY) or the send failed." };
 }
 
+// Reopen a locked week for picking. Sets the deadline to the kickoff of the
+// next game that hasn't started yet (so late-deciding players can still get in
+// before the next games), or, if every game has already started, a short grace
+// window from now. Commissioner override — this can let someone pick after some
+// of the week's games have played, so it's on the commish to use it fairly.
+export async function reopenPicks(
+  groupId: string,
+  weekId: string
+): Promise<{ ok: boolean; message: string }> {
+  const { group } = await requireCommish(groupId);
+  const admin = createAdminClient();
+
+  const { data: gameData } = await admin
+    .from("nfl_games")
+    .select("kickoff_time, status")
+    .eq("week_id", weekId);
+  const games = (gameData as { kickoff_time: string; status: string }[]) ?? [];
+  if (!games.length) {
+    return { ok: false, message: "No games loaded for this week yet — load the schedule first." };
+  }
+
+  const now = Date.now();
+  // Next kickoff among games that haven't kicked off yet.
+  const upcoming = games
+    .filter((g) => g.status === "scheduled")
+    .map((g) => new Date(g.kickoff_time).getTime())
+    .filter((t) => !Number.isNaN(t) && t > now)
+    .sort((a, b) => a - b);
+
+  let newDeadline: Date;
+  let note: string;
+  if (upcoming.length) {
+    newDeadline = new Date(upcoming[0]);
+    note = `Picks reopen until the next kickoff (${newDeadline.toLocaleString("en-US", {
+      weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    })}).`;
+  } else {
+    // Every game has already started/finished — give a short manual grace window.
+    newDeadline = new Date(now + 3 * 60 * 60 * 1000);
+    note =
+      "All of this week's games have already started, so picks are open for the next 3 hours " +
+      "as a manual override. Heads up: some results may already be known.";
+  }
+
+  await admin.from("weeks").update({ pick_deadline: newDeadline.toISOString() }).eq("id", weekId);
+  // Clear this week's strikes so nobody stays penalised for a missed pick while
+  // the window is reopened; they re-derive after the new deadline passes.
+  await admin.from("member_strikes").delete().eq("week_id", weekId);
+  await rescoreSeason(group.season);
+  revalidateGroup(groupId);
+  return { ok: true, message: note };
+}
+
 // Lock a week's picks immediately (emergencies / testing). Re-syncing the
 // schedule restores the real kickoff-based deadline.
 export async function lockWeekNow(
