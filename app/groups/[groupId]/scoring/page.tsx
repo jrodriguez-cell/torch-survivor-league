@@ -44,6 +44,8 @@ export default async function ScoringPage({
   const memberRows = members.map((m) => ({
     id: m.id,
     name: names[m.id],
+    status: m.status,
+    strikesUsed: m.strikes_used,
     picks: picks
       .filter((p) => p.group_member_id === m.id)
       .map((p) => ({ id: p.id, teamAbbr: abbr[p.team_id] ?? "—", result: p.result })),

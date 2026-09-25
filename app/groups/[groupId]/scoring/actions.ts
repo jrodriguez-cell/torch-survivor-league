@@ -156,6 +156,38 @@ export async function sendTestRecap(
     : { ok: false, message: "Email isn't configured (set RESEND_API_KEY) or the send failed." };
 }
 
+// Reinstate an eliminated player: forgive all their strikes and set them back
+// to active so they can pick again. Commissioner override. Because scoring
+// re-derives status from the strike ledger, we clear their ledger rows too —
+// otherwise the next sync would immediately re-eliminate them.
+export async function reinstateMember(
+  groupId: string,
+  memberId: string
+): Promise<{ ok: boolean; message: string }> {
+  const { group } = await requireCommish(groupId);
+  const admin = createAdminClient();
+
+  const { data: m } = await admin
+    .from("group_members")
+    .select("id, group_id")
+    .eq("id", memberId)
+    .eq("group_id", groupId)
+    .maybeSingle();
+  if (!m) return { ok: false, message: "Player not found in this pool." };
+
+  await admin.from("member_strikes").delete().eq("group_member_id", memberId);
+  await admin
+    .from("group_members")
+    .update({ status: "active", strikes_used: 0, eliminated_week_id: null })
+    .eq("id", memberId);
+
+  // Recompute so everything stays consistent (charges strikes only for weeks
+  // whose deadline has already passed — the current, open week is untouched).
+  await rescoreSeason(group.season);
+  revalidateGroup(groupId);
+  return { ok: true, message: "Player reinstated — strikes cleared, back to active." };
+}
+
 // Reopen a locked week for picking. Sets the deadline to the kickoff of the
 // next game that hasn't started yet (so late-deciding players can still get in
 // before the next games), or, if every game has already started, a short grace

@@ -7,6 +7,7 @@ import {
   overridePick,
   lockWeekNow,
   reopenPicks,
+  reinstateMember,
   sendRecap,
   sendTestRecap,
 } from "@/app/groups/[groupId]/scoring/actions";
@@ -20,7 +21,13 @@ type GameRow = {
   status: string;
 };
 type PickRow = { id: string; teamAbbr: string; result: string };
-type MemberRow = { id: string; name: string; picks: PickRow[] };
+type MemberRow = {
+  id: string;
+  name: string;
+  status: string;
+  strikesUsed: number;
+  picks: PickRow[];
+};
 
 const RESULTS = ["pending", "win", "loss", "tie", "missed"] as const;
 
@@ -155,6 +162,39 @@ export default function ScoringAdmin({
                   </button>
                 )}
               </span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h3 className="mb-2 text-lg font-semibold">Players</h3>
+        <p className="mb-3 text-sm text-stone-500">
+          Reinstate an eliminated player to let them back in — this forgives all
+          their strikes and sets them active so they can pick again.
+        </p>
+        <div className="card divide-y divide-stone-100">
+          {members.map((m) => (
+            <div key={m.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+              <span className="font-medium">{m.name}</span>
+              <span className="text-stone-400">·</span>
+              <span className={m.status === "active" ? "text-green-600" : "text-red-600"}>
+                {m.status === "active" ? "active" : "eliminated"}
+              </span>
+              <span className="text-stone-400">·</span>
+              <span className="text-stone-500">{m.strikesUsed} strike{m.strikesUsed === 1 ? "" : "s"}</span>
+              {m.status !== "active" && (
+                <button
+                  className="btn-primary ml-auto px-3 py-1 text-xs"
+                  disabled={pending}
+                  onClick={() => {
+                    if (confirm("Reinstate " + m.name + "? This clears their strikes."))
+                      run(() => reinstateMember(groupId, m.id));
+                  }}
+                >
+                  Reinstate
+                </button>
+              )}
             </div>
           ))}
         </div>
